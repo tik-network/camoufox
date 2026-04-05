@@ -75,6 +75,14 @@ _ESSENTIAL_FONTS_LINUX = [
     'Noto Sans Devanagari', 'Noto Sans JP', 'Noto Sans KR',
     'Noto Sans SC', 'Noto Sans TC',
 ]
+_ESSENTIAL_FONTS_ANDROID = [
+    'Roboto', 'Noto Sans', 'Droid Sans', 'Droid Sans Mono',
+    'Noto Color Emoji', 'Noto Sans CJK JP',
+]
+_ESSENTIAL_FONTS_IOS = [
+    'Helvetica Neue', 'Helvetica', 'Arial', 'Times New Roman',
+    'Courier New', 'Georgia', 'Verdana',
+]
 
 
 def _generate_random_font_subset(target_os: str) -> List[str]:
@@ -84,8 +92,14 @@ def _generate_random_font_subset(target_os: str) -> List[str]:
     always includes essential + marker fonts.
     """
     os_fonts_data = _load_os_fonts()
-    os_key = {'macos': 'mac', 'windows': 'win', 'linux': 'lin'}.get(target_os, 'mac')
+    os_key = {'macos': 'mac', 'windows': 'win', 'linux': 'lin', 'android': 'android', 'ios': 'ios'}.get(target_os, 'mac')
     full_list = os_fonts_data.get(os_key, os_fonts_data.get('mac', []))
+
+    # Mobile: return essential fonts only (no marker font system)
+    if target_os == 'android':
+        return list(_ESSENTIAL_FONTS_ANDROID)
+    if target_os == 'ios':
+        return list(_ESSENTIAL_FONTS_IOS)
 
     if target_os == 'windows':
         essential = set(_ESSENTIAL_FONTS_WINDOWS)
@@ -157,7 +171,12 @@ def _generate_random_voice_subset(target_os: str) -> List[str]:
     Linux: empty list (no native speech voices).
     """
     os_voices_data = _load_os_voices()
-    os_key = {'macos': 'mac', 'windows': 'win', 'linux': 'lin'}.get(target_os, 'mac')
+    os_key = {'macos': 'mac', 'windows': 'win', 'linux': 'lin', 'android': 'android', 'ios': 'ios'}.get(target_os, 'mac')
+
+    # Mobile: no speech voices in Firefox for Android/iOS
+    if target_os in ('android', 'ios'):
+        return []
+
     full_list = os_voices_data.get(os_key, [])
 
     if not full_list:
@@ -204,7 +223,12 @@ _OS_TO_PRESET_KEY = {
     'win': 'windows',
     'mac': 'macos',
     'lin': 'linux',
+    'android': 'android',
+    'ios': 'ios',
 }
+
+# Mobile OS types that require preset-only path (BrowserForge doesn't support mobile)
+_MOBILE_OS = {'android', 'ios'}
 
 
 def get_random_preset(
@@ -272,6 +296,17 @@ def from_preset(preset: Dict, ff_version: Optional[str] = None) -> Dict[str, Any
     if 'maxTouchPoints' in nav:
         config['navigator.maxTouchPoints'] = nav['maxTouchPoints']
 
+    # Mobile-specific fields
+    if preset.get('mobile'):
+        config['pointer:type'] = 'coarse'
+        if 'maxTouchPoints' not in nav:
+            config['navigator.maxTouchPoints'] = 5
+    if preset.get('pointer') == 'coarse':
+        config['pointer:type'] = 'coarse'
+    if preset.get('orientation'):
+        config['screen:orientation:type'] = preset['orientation']
+        config['screen:orientation:angle'] = 0 if 'portrait' in preset['orientation'] else 90
+
     screen = preset.get('screen', {})
     if screen.get('width'):
         config['screen.width'] = screen['width']
@@ -301,7 +336,11 @@ def from_preset(preset: Dict, ff_version: Optional[str] = None) -> Dict[str, Any
 
     # Generate a unique random font subset from the OS font list.
     plat = nav.get('platform', '')
-    if plat == 'MacIntel':
+    if preset.get('mobile') and ('arm' in plat.lower() or 'Android' in nav.get('userAgent', '')):
+        target_os = 'android'
+    elif preset.get('mobile') and ('iPhone' in plat or 'iPad' in plat):
+        target_os = 'ios'
+    elif plat == 'MacIntel':
         target_os = 'macos'
     elif plat == 'Win32':
         target_os = 'windows'
@@ -428,6 +467,17 @@ def generate_context_fingerprint(
     By default, uses BrowserForge for infinite unique synthetic fingerprints.
     Pass a preset dict to use a real fingerprint preset instead.
     """
+    # Mobile OS must use preset-only path (BrowserForge doesn't support mobile)
+    if preset is None and os and _OS_TO_PRESET_KEY.get(os) in _MOBILE_OS:
+        preset = get_random_preset(os=os)
+        if preset is None:
+            import warnings
+            warnings.warn(
+                f"No mobile presets available for os='{os}'. "
+                f"Add presets to fingerprint-presets.json under the '{_OS_TO_PRESET_KEY[os]}' key.",
+                stacklevel=2,
+            )
+
     if preset is not None:
         # Use real fingerprint preset
         config = from_preset(preset, ff_version)
@@ -435,7 +485,7 @@ def generate_context_fingerprint(
         screen = preset.get('screen', {})
         webgl = preset.get('webgl', {})
     else:
-        # Fall back to BrowserForge synthetic generation
+        # Fall back to BrowserForge synthetic generation (desktop only)
         fp = generate_fingerprint(os=os)
         config = from_browserforge(fp, ff_version)
 
@@ -478,7 +528,7 @@ def generate_context_fingerprint(
 
         # Sample WebGL vendor/renderer from database (BrowserForge doesn't generate these)
         if not config.get('webGl:vendor') or not config.get('webGl:renderer'):
-            _os_map = {'macos': 'mac', 'linux': 'lin', 'windows': 'win'}
+            _os_map = {'macos': 'mac', 'linux': 'lin', 'windows': 'win', 'android': 'android', 'ios': 'mac'}
             _target_os = _os_map.get(os or '', None)
             if not _target_os:
                 plat = config.get('navigator.platform', '')
@@ -554,6 +604,11 @@ def generate_context_fingerprint(
         tz = preset.get('timezone')
     if tz:
         context_options['timezone_id'] = tz
+
+    # Mobile: enable touch and mobile emulation in Playwright
+    if config.get('pointer:type') == 'coarse':
+        context_options['has_touch'] = True
+        context_options['is_mobile'] = True
 
     return {
         'init_script': init_script,

@@ -10,6 +10,9 @@ from camoufox.pkgman import OS_ARCH_MATRIX
 # Get database path relative to this file
 DB_PATH = Path(__file__).parent / 'webgl_data.db'
 
+# Valid OS keys for WebGL sampling (superset of OS_ARCH_MATRIX keys)
+WEBGL_OS_KEYS = set(OS_ARCH_MATRIX.keys()) | {'android'}
+
 
 def sample_webgl(
     os: str, vendor: Optional[str] = None, renderer: Optional[str] = None
@@ -30,8 +33,8 @@ def sample_webgl(
         ValueError: If invalid OS provided or no data found for OS/vendor/renderer
     """
     # Check that the OS is valid (avoid SQL injection)
-    if os not in OS_ARCH_MATRIX:
-        raise ValueError(f'Invalid OS: {os}. Must be one of: win, mac, lin')
+    if os not in WEBGL_OS_KEYS:
+        raise ValueError(f'Invalid OS: {os}. Must be one of: {", ".join(WEBGL_OS_KEYS)}')
 
     # Connect to database
     conn = sqlite3.connect(DB_PATH)
@@ -97,7 +100,7 @@ def get_possible_pairs() -> Dict[str, List[Tuple[str, str]]]:
 
     # Get all vendor/renderer pairs for each OS where probability > 0
     result: Dict[str, List[Tuple[str, str]]] = {}
-    for os_type in OS_ARCH_MATRIX:
+    for os_type in WEBGL_OS_KEYS:
         cursor.execute(
             'SELECT DISTINCT vendor, renderer FROM webgl_fingerprints '
             f'WHERE {os_type} > 0 ORDER BY {os_type} DESC',  # nosec

@@ -2,11 +2,27 @@ diff --git a/layout/style/nsMediaFeatures.cpp b/layout/style/nsMediaFeatures.cpp
 index cc86d1abf6..bfc4d0f1d8 100644
 --- a/layout/style/nsMediaFeatures.cpp
 +++ b/layout/style/nsMediaFeatures.cpp
-@@ -372,24 +372,10 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
- 
+@@ -6,6 +6,7 @@
+
+ #include "nsMediaFeatures.h"
++#include "MaskConfig.hpp"
+
+ #include "mozilla/LookAndFeel.h"
+ #include "mozilla/MediaFeatureChange.h"
+@@ -372,24 +372,18 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
+
    // The default value for Desktop is mouse-type pointer, and for Android
    // a coarse pointer.
 -  const PointerCapabilities kDefaultCapabilities =
++  // Camoufox: configurable pointer type for mobile emulation
++  if (auto ptype = MaskConfig::GetString("pointer:type")) {
++    if (ptype.value() == "coarse")
++      return PointerCapabilities::Coarse;
++    if (ptype.value() == "fine")
++      return PointerCapabilities::Fine;
++    if (ptype.value() == "fine+hover")
++      return PointerCapabilities::Fine | PointerCapabilities::Hover;
++  }
  #ifdef ANDROID
 -      PointerCapabilities::Coarse;
 -#else
@@ -27,5 +43,5 @@ index cc86d1abf6..bfc4d0f1d8 100644
 -  return static_cast<PointerCapabilities>(intValue);
 +  return PointerCapabilities::Fine | PointerCapabilities::Hover;
  }
- 
+
  PointerCapabilities Gecko_MediaFeatures_PrimaryPointerCapabilities(

@@ -8,9 +8,13 @@ index 0000000000..abcdef1234
 +#include "CanvasFingerprintManager.h"
 +
 +#include <algorithm>
++#include <cstdio>
++#include <ctime>
 +#include "MaskConfig.hpp"
 +#include "mozilla/dom/BrowsingContext.h"
++#include "nsContentUtils.h"
 +#include "nsGlobalWindowInner.h"
++#include "jsapi.h"
 +#include "xpcpublic.h"
 +
 +namespace mozilla {
@@ -64,6 +68,60 @@ index 0000000000..abcdef1234
 +  }
 +}
 +
++uint32_t CanvasFingerprintManager::ComputeHash(const uint8_t* data,
++                                                uint32_t length) {
++  uint32_t hash = 2166136261u;  // FNV-1a
++  for (uint32_t i = 0; i < length; i++) {
++    hash ^= data[i];
++    hash *= 16777619u;
++  }
++  return hash;
++}
++
++void CanvasFingerprintManager::DebugLogCanvas(const char* api, uint32_t dataLen,
++                                               uint32_t seed,
++                                               uint32_t hashBefore,
++                                               uint32_t hashAfter) {
++  if (!MaskConfig::CheckBool("debug")) return;
++  const char* caller = "native";
++  unsigned lineno = 0;
++  if (JSContext* cx = nsContentUtils::GetCurrentJSContext()) {
++    JS::AutoFilename filename;
++    if (JS::DescribeScriptedCaller(cx, &filename, &lineno) && filename.get()) {
++      caller = filename.get();
++    }
++  }
++  // Log to file: ~/.camoufox/canvas_debug.log
++  std::string logPath;
++#ifdef _WIN32
++  if (auto appdata = get_env_utf8("APPDATA")) {
++    logPath = *appdata + "\\camoufox\\canvas_debug.log";
++  }
++#else
++  if (auto home = get_env_utf8("HOME")) {
++    logPath = *home + "/.camoufox/canvas_debug.log";
++  }
++#endif
++  if (logPath.empty()) return;
++  FILE* f = fopen(logPath.c_str(), "a");
++  if (!f) return;
++  // Timestamp
++  time_t now = time(nullptr);
++  struct tm tm;
++#ifdef _WIN32
++  localtime_s(&tm, &now);
++#else
++  localtime_r(&now, &tm);
++#endif
++  char timebuf[32];
++  strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm);
++  fprintf(f,
++      "[%s] api=%s len=%u seed=%u before=0x%08X after=0x%08X "
++      "caller=%s:%u\n",
++      timebuf, api, dataLen, seed, hashBefore, hashAfter, caller, lineno);
++  fclose(f);
++}
++
 +void CanvasFingerprintManager::DisableFunction(uint32_t aId) {
 +  RoverfoxStorageManager::PutBool(DisabledKeyForUserContext(aId), true);
 +}
@@ -106,6 +164,10 @@ index 0000000000..bcdef12345
 +  static void SetSeed(uint32_t aUserContextId, uint32_t aSeed);
 +  static uint32_t GetSeed(uint32_t aUserContextId);
 +  static void ApplyCanvasNoise(uint8_t* data, uint32_t length, uint32_t seed);
++  static uint32_t ComputeHash(const uint8_t* data, uint32_t length);
++  static void DebugLogCanvas(const char* api, uint32_t dataLen,
++                              uint32_t seed, uint32_t hashBefore,
++                              uint32_t hashAfter);
 +  static void DisableFunction(uint32_t aId);
 +  static bool IsFunctionEnabledForWebIDL(JSContext* aCx, JSObject* aObj);
 + private:
@@ -237,11 +299,14 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +      }
 +    }
 +    uint32_t canvasSeed = CanvasFingerprintManager::GetSeed(userContextId);
++    uint32_t dataLen = out_imageSize->width * out_imageSize->height * 4;
++    uint32_t hashBefore = CanvasFingerprintManager::ComputeHash(ret.get(), dataLen);
 +    if (canvasSeed != 0) {
-+      CanvasFingerprintManager::ApplyCanvasNoise(
-+          ret.get(), out_imageSize->width * out_imageSize->height * 4,
-+          canvasSeed);
++      CanvasFingerprintManager::ApplyCanvasNoise(ret.get(), dataLen, canvasSeed);
 +    }
++    uint32_t hashAfter = CanvasFingerprintManager::ComputeHash(ret.get(), dataLen);
++    CanvasFingerprintManager::DebugLogCanvas(
++        "toDataURL/toBlob", dataLen, canvasSeed, hashBefore, hashAfter);
 +  }
 +
    return ret;
@@ -271,13 +336,21 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +      }
 +    }
 +    uint32_t canvasSeed = CanvasFingerprintManager::GetSeed(userContextId);
-+    if (canvasSeed != 0) {
++    {
 +      JS::AutoCheckCannotGC nogc2;
 +      bool isShared2;
 +      uint8_t* pixelData =
 +          JS_GetUint8ClampedArrayData(darray, &isShared2, nogc2);
-+      CanvasFingerprintManager::ApplyCanvasNoise(pixelData, len.value(),
-+                                                  canvasSeed);
++      uint32_t hashBefore = CanvasFingerprintManager::ComputeHash(
++          pixelData, len.value());
++      if (canvasSeed != 0) {
++        CanvasFingerprintManager::ApplyCanvasNoise(pixelData, len.value(),
++                                                    canvasSeed);
++      }
++      uint32_t hashAfter = CanvasFingerprintManager::ComputeHash(
++          pixelData, len.value());
++      CanvasFingerprintManager::DebugLogCanvas(
++          "getImageData", len.value(), canvasSeed, hashBefore, hashAfter);
 +    }
 +  }
 +

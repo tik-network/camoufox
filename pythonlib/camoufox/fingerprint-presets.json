@@ -6028,6 +6028,274 @@
           "unmaskedRenderer": "NVIDIA GeForce GTX 980, or similar"
         }
       }
+    ],
+    "android": [
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 412,
+          "height": 915,
+          "colorDepth": 24,
+          "availWidth": 412,
+          "availHeight": 915,
+          "devicePixelRatio": 2.625
+        },
+        "webgl": {
+          "unmaskedVendor": "Qualcomm",
+          "unmaskedRenderer": "Adreno (TM) 730"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 393,
+          "height": 873,
+          "colorDepth": 24,
+          "availWidth": 393,
+          "availHeight": 873,
+          "devicePixelRatio": 2.75
+        },
+        "webgl": {
+          "unmaskedVendor": "Qualcomm",
+          "unmaskedRenderer": "Adreno (TM) 730"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 13; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 360,
+          "height": 800,
+          "colorDepth": 24,
+          "availWidth": 360,
+          "availHeight": 800,
+          "devicePixelRatio": 3.0
+        },
+        "webgl": {
+          "unmaskedVendor": "Qualcomm",
+          "unmaskedRenderer": "Adreno (TM) 660"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 13; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 10,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 384,
+          "height": 854,
+          "colorDepth": 24,
+          "availWidth": 384,
+          "availHeight": 854,
+          "devicePixelRatio": 2.813
+        },
+        "webgl": {
+          "unmaskedVendor": "Qualcomm",
+          "unmaskedRenderer": "Adreno (TM) 619"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 10,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 360,
+          "height": 780,
+          "colorDepth": 24,
+          "availWidth": 360,
+          "availHeight": 780,
+          "devicePixelRatio": 3.0
+        },
+        "webgl": {
+          "unmaskedVendor": "ARM",
+          "unmaskedRenderer": "Mali-G78"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 13; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 4,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 360,
+          "height": 740,
+          "colorDepth": 24,
+          "availWidth": 360,
+          "availHeight": 740,
+          "devicePixelRatio": 2.0
+        },
+        "webgl": {
+          "unmaskedVendor": "ARM",
+          "unmaskedRenderer": "Mali-G57"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 14; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 412,
+          "height": 892,
+          "colorDepth": 24,
+          "availWidth": 412,
+          "availHeight": 892,
+          "devicePixelRatio": 2.625
+        },
+        "webgl": {
+          "unmaskedVendor": "Qualcomm",
+          "unmaskedRenderer": "Adreno (TM) 730"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (Android 12; Mobile; rv:148.0) Gecko/148.0 Firefox/148.0",
+          "platform": "Linux aarch64",
+          "hardwareConcurrency": 8,
+          "maxTouchPoints": 5,
+          "oscpu": "Linux aarch64"
+        },
+        "screen": {
+          "width": 412,
+          "height": 869,
+          "colorDepth": 24,
+          "availWidth": 412,
+          "availHeight": 869,
+          "devicePixelRatio": 2.625
+        },
+        "webgl": {
+          "unmaskedVendor": "ARM",
+          "unmaskedRenderer": "Mali-G77"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      }
+    ],
+    "ios": [
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/148.0 Mobile/15E148 Safari/605.1.15",
+          "platform": "iPhone",
+          "hardwareConcurrency": 6,
+          "maxTouchPoints": 5,
+          "oscpu": ""
+        },
+        "screen": {
+          "width": 390,
+          "height": 844,
+          "colorDepth": 32,
+          "availWidth": 390,
+          "availHeight": 844,
+          "devicePixelRatio": 3.0
+        },
+        "webgl": {
+          "unmaskedVendor": "Apple Inc.",
+          "unmaskedRenderer": "Apple GPU"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/148.0 Mobile/15E148 Safari/605.1.15",
+          "platform": "iPhone",
+          "hardwareConcurrency": 6,
+          "maxTouchPoints": 5,
+          "oscpu": ""
+        },
+        "screen": {
+          "width": 430,
+          "height": 932,
+          "colorDepth": 32,
+          "availWidth": 430,
+          "availHeight": 932,
+          "devicePixelRatio": 3.0
+        },
+        "webgl": {
+          "unmaskedVendor": "Apple Inc.",
+          "unmaskedRenderer": "Apple GPU"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      },
+      {
+        "navigator": {
+          "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/148.0 Mobile/15E148 Safari/605.1.15",
+          "platform": "iPhone",
+          "hardwareConcurrency": 6,
+          "maxTouchPoints": 5,
+          "oscpu": ""
+        },
+        "screen": {
+          "width": 375,
+          "height": 812,
+          "colorDepth": 32,
+          "availWidth": 375,
+          "availHeight": 812,
+          "devicePixelRatio": 3.0
+        },
+        "webgl": {
+          "unmaskedVendor": "Apple Inc.",
+          "unmaskedRenderer": "Apple GPU"
+        },
+        "mobile": true,
+        "pointer": "coarse",
+        "orientation": "portrait-primary"
+      }
     ]
   }
 }
