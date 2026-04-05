@@ -1,0 +1,125 @@
+diff --git a/dom/system/nsDeviceSensors.h b/dom/system/nsDeviceSensors.h
+index xxxxxxxxxx..yyyyyyyyyy 100644
+--- a/dom/system/nsDeviceSensors.h
++++ b/dom/system/nsDeviceSensors.h
+@@ -12,6 +12,7 @@
+ #include "mozilla/HalSensor.h"
+ #include "nsCOMArray.h"
+ #include "nsIDeviceSensors.h"
++#include "nsITimer.h"
+
+ class nsIDOMWindow;
+
+@@ -58,6 +59,9 @@ class nsDeviceSensors : public nsIDeviceSensors,
+   nsTArray<nsTArray<nsIDOMWindow*>*> mWindowListeners;
+   TimeStamp mLastDOMMotionEventTime;
+   bool mIsUserProximityNear;
++
++  // Camoufox: timers for synthetic sensor events (mobile emulation)
++  nsTArray<nsCOMPtr<nsITimer>> mCamoufoxSensorTimers;
+ };
+
+ #endif
+diff --git a/dom/system/nsDeviceSensors.cpp b/dom/system/nsDeviceSensors.cpp
+index xxxxxxxxxx..yyyyyyyyyy 100644
+--- a/dom/system/nsDeviceSensors.cpp
++++ b/dom/system/nsDeviceSensors.cpp
+@@ -6,6 +6,9 @@
+
+ #include "nsDeviceSensors.h"
+
++// Camoufox: synthetic sensor data for mobile emulation
++#include "MaskConfig.hpp"
++
+ #include <cmath>
+
+ #include "mozilla/ErrorResult.h"
+@@ -127,6 +130,62 @@ class DeviceSensorTestEvent : public Runnable {
+   uint32_t mType;
+ };
+
++// Camoufox: Repeating synthetic sensor event for mobile emulation.
++// Generates realistic data simulating a phone held roughly upright and still.
++class CamoufoxSensorTimer final : public nsITimerCallback, public nsINamed {
++ public:
++  NS_DECL_ISUPPORTS
++
++  CamoufoxSensorTimer(nsDeviceSensors* aTarget, uint32_t aType)
++      : mTarget(aTarget), mType(aType), mState(static_cast<uint32_t>(PR_Now())) {}
++
++  NS_IMETHOD Notify(nsITimer* aTimer) override {
++    using namespace mozilla::hal;
++    SensorData sensorData;
++    sensorData.sensor() = static_cast<SensorType>(mType);
++    sensorData.timestamp() = PR_Now();
++
++    // LCG noise generator (same as canvas noise)
++    auto noise = [&](double mag) -> double {
++      mState = mState * 1664525u + 1013904223u;
++      return (static_cast<double>(mState) / 4294967296.0 * 2.0 - 1.0) * mag;
++    };
++
++    if (mType == nsIDeviceSensorData::TYPE_ACCELERATION) {
++      // Phone upright: x~0, y~9.8, z~0 with micro-vibration
++      sensorData.values().AppendElement(static_cast<float>(0.0 + noise(0.15)));
++      sensorData.values().AppendElement(static_cast<float>(9.81 + noise(0.12)));
++      sensorData.values().AppendElement(static_cast<float>(0.0 + noise(0.15)));
++    } else if (mType == nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION) {
++      sensorData.values().AppendElement(static_cast<float>(noise(0.05)));
++      sensorData.values().AppendElement(static_cast<float>(noise(0.05)));
++      sensorData.values().AppendElement(static_cast<float>(noise(0.05)));
++    } else if (mType == nsIDeviceSensorData::TYPE_GYROSCOPE) {
++      sensorData.values().AppendElement(static_cast<float>(noise(0.02)));
++      sensorData.values().AppendElement(static_cast<float>(noise(0.02)));
++      sensorData.values().AppendElement(static_cast<float>(noise(0.02)));
++    } else if (mType == nsIDeviceSensorData::TYPE_ORIENTATION) {
++      sensorData.values().AppendElement(static_cast<float>(180.0 + noise(5.0)));
++      sensorData.values().AppendElement(static_cast<float>(85.0 + noise(3.0)));
++      sensorData.values().AppendElement(static_cast<float>(0.0 + noise(2.0)));
++    } else {
++      return NS_OK;
++    }
++
++    mTarget->Notify(sensorData);
++    return NS_OK;
++  }
++
++  NS_IMETHOD GetName(nsACString& aName) override {
++    aName.AssignLiteral("CamoufoxSensorTimer");
++    return NS_OK;
++  }
++
++ private:
++  ~CamoufoxSensorTimer() = default;
++  RefPtr<nsDeviceSensors> mTarget;
++  uint32_t mType;
++  uint32_t mState;
++};
++
++NS_IMPL_ISUPPORTS(CamoufoxSensorTimer, nsITimerCallback, nsINamed)
++
+ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
+                                                  nsIDOMWindow* aWindow) {
+   if (!IsSensorAllowedByPref(aType, aWindow)) return NS_OK;
+@@ -140,6 +199,20 @@ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
+
+   mWindowListeners[aType]->AppendElement(aWindow);
+
++  // Camoufox: start synthetic sensor data when sensors:enabled is true
++  if (MaskConfig::CheckBool("sensors:enabled")) {
++    if (aType == nsIDeviceSensorData::TYPE_ACCELERATION ||
++        aType == nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION ||
++        aType == nsIDeviceSensorData::TYPE_GYROSCOPE ||
++        aType == nsIDeviceSensorData::TYPE_ORIENTATION) {
++      nsCOMPtr<nsITimer> timer;
++      RefPtr<CamoufoxSensorTimer> callback =
++          new CamoufoxSensorTimer(this, aType);
++      NS_NewTimerWithCallback(getter_AddRefs(timer), callback,
++                              DEFAULT_SENSOR_POLL, nsITimer::TYPE_REPEATING_SLACK);
++      mCamoufoxSensorTimers.AppendElement(timer);
++    }
++  }
++
+   if (StaticPrefs::device_sensors_test_events()) {
+     nsCOMPtr<nsIRunnable> event = new DeviceSensorTestEvent(this, aType);
+     NS_DispatchToCurrentThread(event);

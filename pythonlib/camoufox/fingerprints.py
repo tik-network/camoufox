@@ -306,6 +306,8 @@ def from_preset(preset: Dict, ff_version: Optional[str] = None) -> Dict[str, Any
     if preset.get('orientation'):
         config['screen:orientation:type'] = preset['orientation']
         config['screen:orientation:angle'] = 0 if 'portrait' in preset['orientation'] else 90
+    if preset.get('mobile'):
+        config['sensors:enabled'] = True
 
     screen = preset.get('screen', {})
     if screen.get('width'):

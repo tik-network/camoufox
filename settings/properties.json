@@ -108,5 +108,6 @@
   { "property": "debug", "type": "bool" },
   { "property": "pointer:type", "type": "str" },
   { "property": "screen:orientation:type", "type": "str" },
-  { "property": "screen:orientation:angle", "type": "uint" }
+  { "property": "screen:orientation:angle", "type": "uint" },
+  { "property": "sensors:enabled", "type": "bool" }
 ]

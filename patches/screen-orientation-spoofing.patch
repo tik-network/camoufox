@@ -1,0 +1,45 @@
+diff --git a/dom/base/ScreenOrientation.cpp b/dom/base/ScreenOrientation.cpp
+index xxxxxxxxxx..yyyyyyyyyy 100644
+--- a/dom/base/ScreenOrientation.cpp
++++ b/dom/base/ScreenOrientation.cpp
+@@ -7,6 +7,7 @@
+ #include "ScreenOrientation.h"
+
+ #include "mozilla/DOMEventTargetHelper.h"
++#include "MaskConfig.hpp"
+ #include "mozilla/Hal.h"
+ #include "mozilla/Preferences.h"
+ #include "mozilla/StaticPrefs_browser.h"
+@@ -715,6 +716,20 @@ OrientationType ScreenOrientation::GetType(CallerType aCallerType,
+     return OrientationType::Portrait_primary;
+   }
+
++  // Camoufox: global screen orientation type override for mobile emulation
++  if (auto typeStr = MaskConfig::GetString("screen:orientation:type")) {
++    const std::string& t = typeStr.value();
++    if (t == "portrait-primary")
++      return OrientationType::Portrait_primary;
++    if (t == "portrait-secondary")
++      return OrientationType::Portrait_secondary;
++    if (t == "landscape-primary")
++      return OrientationType::Landscape_primary;
++    if (t == "landscape-secondary")
++      return OrientationType::Landscape_secondary;
++    return OrientationType::Portrait_primary;
++  }
++
+   OrientationType orientation = bc->GetCurrentOrientationType();
+   if (nsContentUtils::ShouldResistFingerprinting(
+           aCallerType, GetOwnerGlobal(), RFPTarget::ScreenOrientation)) {
+@@ -733,6 +748,11 @@ uint16_t ScreenOrientation::GetAngle(CallerType aCallerType,
+     return 0;
+   }
+
++  // Camoufox: global screen orientation angle override for mobile emulation
++  if (auto angle = MaskConfig::GetUint32("screen:orientation:angle")) {
++    return static_cast<uint16_t>(angle.value());
++  }
++
+   uint16_t angle = static_cast<uint16_t>(bc->GetCurrentOrientationAngle());
+   if (nsContentUtils::ShouldResistFingerprinting(
+           aCallerType, GetOwnerGlobal(), RFPTarget::ScreenOrientation)) {
