@@ -47,6 +47,14 @@ class Patcher:
         """
         version, release = extract_args()
         with temp_cd(find_src_dir('.', version, release)):
+            if options.mozconfig_only:
+                # Only update mozconfig — do NOT reset or re-copy (preserves source tree)
+                print(f'Updating mozconfig only, target is {self.moz_target}')
+                if not os.path.exists('mozconfig'):
+                    run('cp -v ../assets/base.mozconfig mozconfig')
+                self._update_mozconfig()
+                return
+
             # Reset to unpatched state first (like "Find broken patches")
             print("Resetting to unpatched state...")
             run('git clean -fdx && ./mach clobber && git reset --hard unpatched', exit_on_fail=False)
