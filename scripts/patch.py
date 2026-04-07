@@ -55,13 +55,19 @@ class Patcher:
                 self._update_mozconfig()
                 return
 
-            # Reset to unpatched state first (like "Find broken patches")
-            print("Resetting to unpatched state...")
-            run('git clean -fdx && ./mach clobber && git reset --hard unpatched', exit_on_fail=False)
+            # Reset to unpatched state — only if this source dir has its own
+            # git repo (created by `make setup`). On CI, `make setup-minimal`
+            # doesn't init git here, and running `git clean -fdx` would walk
+            # up to the parent repo's .git and delete the entire source tree.
+            if os.path.isdir('.git'):
+                print("Resetting to unpatched state...")
+                run('git clean -fdx && ./mach clobber && git reset --hard unpatched', exit_on_fail=False)
 
-            # Re-copy additions and settings after reset
-            print("Re-copying additions and settings...")
-            run(f'bash ../scripts/copy-additions.sh {version} {release}')
+                # Re-copy additions and settings after reset
+                print("Re-copying additions and settings...")
+                run(f'bash ../scripts/copy-additions.sh {version} {release}')
+            else:
+                print("No local git repo — skipping reset (fresh source from setup-minimal)")
 
             # Create the base mozconfig file
             run('cp -v ../assets/base.mozconfig mozconfig')
