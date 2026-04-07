@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000..abcdef1234
 --- /dev/null
 +++ b/dom/base/CanvasFingerprintManager.cpp
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,137 @@
 +/* Camoufox: Per-context canvas fingerprint manager */
 +#include "CanvasFingerprintManager.h"
 +
@@ -146,7 +146,7 @@ new file mode 100644
 index 0000000000..bcdef12345
 --- /dev/null
 +++ b/dom/base/CanvasFingerprintManager.h
-@@ -0,0 +1,27 @@
+@@ -0,0 +1,31 @@
 +/* Camoufox: Per-context canvas fingerprint manager */
 +#ifndef mozilla_dom_CanvasFingerprintManager_h
 +#define mozilla_dom_CanvasFingerprintManager_h
@@ -273,7 +273,7 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
  #include "mozilla/dom/CanvasGradient.h"
  #include "mozilla/dom/CanvasPath.h"
  #include "mozilla/dom/CanvasPattern.h"
-@@ -2287,5 +2289,34 @@
+@@ -2287,5 +2289,37 @@
          SurfaceFormat::A8R8G8B8_UINT32);
    }
 
@@ -311,7 +311,7 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +
    return ret;
  }
-@@ -6615,5 +6644,37 @@
+@@ -6615,5 +6644,45 @@
    } while (false);
 
 +  // Per-context canvas fingerprint noise

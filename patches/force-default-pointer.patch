@@ -2,14 +2,14 @@ diff --git a/layout/style/nsMediaFeatures.cpp b/layout/style/nsMediaFeatures.cpp
 index cc86d1abf6..bfc4d0f1d8 100644
 --- a/layout/style/nsMediaFeatures.cpp
 +++ b/layout/style/nsMediaFeatures.cpp
-@@ -6,6 +6,7 @@
+@@ -6,5 +6,6 @@
 
  #include "nsMediaFeatures.h"
 +#include "MaskConfig.hpp"
 
  #include "mozilla/LookAndFeel.h"
  #include "mozilla/MediaFeatureChange.h"
-@@ -372,24 +372,18 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
+@@ -372,24 +372,19 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
 
    // The default value for Desktop is mouse-type pointer, and for Android
    // a coarse pointer.

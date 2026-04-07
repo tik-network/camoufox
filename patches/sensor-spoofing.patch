@@ -34,7 +34,7 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
  #include <cmath>
 
  #include "mozilla/ErrorResult.h"
-@@ -127,6 +130,193 @@ class DeviceSensorTestEvent : public Runnable {
+@@ -127,6 +130,206 @@ class DeviceSensorTestEvent : public Runnable {
    uint32_t mType;
  };
 
@@ -241,7 +241,7 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
  NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
                                                   nsIDOMWindow* aWindow) {
    if (!IsSensorAllowedByPref(aType, aWindow)) return NS_OK;
-@@ -140,6 +330,22 @@ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
+@@ -140,6 +330,23 @@ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
 
    mWindowListeners[aType]->AppendElement(aWindow);
 
