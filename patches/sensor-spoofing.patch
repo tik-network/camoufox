@@ -1,72 +1,42 @@
-diff --git a/dom/system/nsDeviceSensors.h b/dom/system/nsDeviceSensors.h
-index xxxxxxxxxx..yyyyyyyyyy 100644
---- a/dom/system/nsDeviceSensors.h
-+++ b/dom/system/nsDeviceSensors.h
-@@ -12,6 +12,7 @@
- #include "mozilla/HalSensor.h"
- #include "nsCOMArray.h"
- #include "nsIDeviceSensors.h"
-+#include "nsITimer.h"
-
- class nsIDOMWindow;
-
-@@ -58,6 +59,9 @@ class nsDeviceSensors : public nsIDeviceSensors,
-   nsTArray<nsTArray<nsIDOMWindow*>*> mWindowListeners;
-   TimeStamp mLastDOMMotionEventTime;
-   bool mIsUserProximityNear;
-+
-+  // Camoufox: timers for synthetic sensor events (mobile emulation)
-+  nsTArray<nsCOMPtr<nsITimer>> mCamoufoxSensorTimers;
- };
-
- #endif
 diff --git a/dom/system/nsDeviceSensors.cpp b/dom/system/nsDeviceSensors.cpp
-index xxxxxxxxxx..yyyyyyyyyy 100644
+index c281b2de31..1ddd125b10 100644
 --- a/dom/system/nsDeviceSensors.cpp
 +++ b/dom/system/nsDeviceSensors.cpp
 @@ -6,6 +6,9 @@
-
+ 
  #include "nsDeviceSensors.h"
-
+ 
 +// Camoufox: realistic synthetic sensor data for mobile emulation
 +#include "MaskConfig.hpp"
 +
  #include <cmath>
-
+ 
  #include "mozilla/ErrorResult.h"
-@@ -127,6 +130,206 @@ class DeviceSensorTestEvent : public Runnable {
+@@ -148,6 +151,186 @@ class DeviceSensorTestEvent : public Runnable {
    uint32_t mType;
  };
-
+ 
 +// Camoufox: Realistic sensor simulation for mobile device emulation.
 +//
 +// Physics model:
 +//   - Gaussian noise via Box-Muller transform (real MEMS noise is Gaussian)
 +//   - Bias random walk (Brownian motion drift) per axis
 +//   - Physiological hand tremor at 6-15 Hz with peak at ~8 Hz
-+//   - Gravity vector correctly distributed across axes based on phone orientation
++//   - Gravity vector correctly distributed across axes from phone orientation
 +//   - Cross-sensor consistency: accel, gyro, orientation from same physical state
-+//   - 60 Hz sampling rate (~16ms interval) matching real browser behavior
-+//   - Noise magnitudes matched to real device specs (SD ~0.008 m/s² accel, ~0.001 rad/s gyro)
-+//
-+// References:
-+//   - Kalibr IMU noise model (ETH Zurich)
-+//   - SensorID (IEEE S&P 2019) for calibration-level realism
-+//   - zkSENSE for touch-correlated perturbation awareness
-+
++//   - 60 Hz sampling rate matching real browser behavior
++//   - Noise magnitudes matched to real device specs
 +class CamoufoxSensorSimulator final : public nsITimerCallback, public nsINamed {
 + public:
 +  NS_DECL_ISUPPORTS
 +
-+  CamoufoxSensorSimulator(nsDeviceSensors* aTarget)
++  explicit CamoufoxSensorSimulator(nsDeviceSensors* aTarget)
 +      : mTarget(aTarget), mTick(0) {
-+    // Seed from high-resolution time for uniqueness per session
 +    uint64_t seed = static_cast<uint64_t>(PR_Now());
 +    mRngState[0] = static_cast<uint32_t>(seed);
 +    mRngState[1] = static_cast<uint32_t>(seed >> 17) ^ 0xDEADBEEF;
 +
-+    // Per-device calibration bias (unique per browser session, stable)
-+    // Real devices: 0.02 - 0.2 m/s² bias offset
++    // Per-session calibration bias (unique per browser session, stable)
 +    mAccelBias[0] = Gaussian() * 0.05;
 +    mAccelBias[1] = Gaussian() * 0.05;
 +    mAccelBias[2] = Gaussian() * 0.05;
@@ -74,66 +44,59 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +    mGyroBias[1] = Gaussian() * 0.0005;
 +    mGyroBias[2] = Gaussian() * 0.0005;
 +
-+    // Initial bias walk state (will drift over time)
 +    mAccelDrift[0] = mAccelDrift[1] = mAccelDrift[2] = 0.0;
 +    mGyroDrift[0] = mGyroDrift[1] = mGyroDrift[2] = 0.0;
 +
-+    // Phone orientation: slightly tilted from vertical (realistic hand-held)
-+    // Pitch ~80° (nearly upright), Roll ~2° (slight tilt)
-+    mPitch = 1.396 + Gaussian() * 0.05;  // ~80° in radians
-+    mRoll  = 0.035 + Gaussian() * 0.02;  // ~2° in radians
-+    mYaw   = Gaussian() * M_PI;          // Random compass heading
++    // Phone orientation: nearly upright, slight tilt (hand-held)
++    mPitch = 1.396 + Gaussian() * 0.05;  // ~80 degrees
++    mRoll = 0.035 + Gaussian() * 0.02;   // ~2 degrees
++    mYaw = Gaussian() * M_PI;
 +  }
 +
 +  NS_IMETHOD Notify(nsITimer* aTimer) override {
 +    using namespace mozilla::hal;
-+    double t = mTick * 0.016667;  // Time in seconds (60 Hz)
++    double t = mTick * 0.016667;  // 60 Hz sampling
 +
-+    // === Slow orientation drift (simulates hand micro-adjustments) ===
-+    // Drift rate: ~0.001 rad per tick, with occasional larger shifts
++    // Slow orientation drift (simulates hand micro-adjustments)
 +    mPitch += Gaussian() * 0.0003;
-+    mRoll  += Gaussian() * 0.0004;
-+    mYaw   += Gaussian() * 0.0002;
++    mRoll += Gaussian() * 0.0004;
++    mYaw += Gaussian() * 0.0002;
 +
-+    // Clamp pitch to reasonable range (60-100° = phone held upright-ish)
-+    if (mPitch < 1.047) mPitch = 1.047;  // 60°
-+    if (mPitch > 1.745) mPitch = 1.745;  // 100°
-+    if (mRoll < -0.175) mRoll = -0.175;  // -10°
-+    if (mRoll > 0.175) mRoll = 0.175;    // 10°
++    if (mPitch < 1.047) mPitch = 1.047;
++    if (mPitch > 1.745) mPitch = 1.745;
++    if (mRoll < -0.175) mRoll = -0.175;
++    if (mRoll > 0.175) mRoll = 0.175;
 +
-+    // === Bias random walk (Brownian motion) ===
-+    // Accel bias walk: ~2e-4 m/s²/√s → per tick at 60Hz: 2e-4 * sqrt(1/60)
-+    double bwAccel = 2.58e-5;  // bias walk per tick
-+    double bwGyro  = 3.33e-6;  // gyro bias walk per tick
++    // Bias random walk (Brownian motion)
++    double bwAccel = 2.58e-5;
++    double bwGyro = 3.33e-6;
 +    for (int i = 0; i < 3; i++) {
 +      mAccelDrift[i] += Gaussian() * bwAccel;
-+      mGyroDrift[i]  += Gaussian() * bwGyro;
++      mGyroDrift[i] += Gaussian() * bwGyro;
 +    }
 +
-+    // === Physiological hand tremor (6-15 Hz, peak at ~8 Hz) ===
-+    // Model as sum of sinusoids with slight frequency jitter
++    // Physiological hand tremor (6-15 Hz, peak at ~8 Hz)
 +    double tremor[3];
 +    for (int i = 0; i < 3; i++) {
 +      double phase = t * 2.0 * M_PI;
-+      tremor[i] = 0.012 * sin(phase * 8.2 + i * 1.1 + Gaussian() * 0.1)
-+                + 0.006 * sin(phase * 6.5 + i * 2.3 + Gaussian() * 0.08)
-+                + 0.004 * sin(phase * 11.7 + i * 0.7 + Gaussian() * 0.12)
-+                + 0.003 * sin(phase * 14.3 + i * 1.9 + Gaussian() * 0.15);
++      tremor[i] = 0.012 * sin(phase * 8.2 + i * 1.1 + Gaussian() * 0.1) +
++                  0.006 * sin(phase * 6.5 + i * 2.3 + Gaussian() * 0.08) +
++                  0.004 * sin(phase * 11.7 + i * 0.7 + Gaussian() * 0.12) +
++                  0.003 * sin(phase * 14.3 + i * 1.9 + Gaussian() * 0.15);
 +    }
 +
-+    // === Gravity vector from orientation ===
++    // Gravity vector from orientation
 +    double sp = sin(mPitch), cp = cos(mPitch);
-+    double sr = sin(mRoll),  cr = cos(mRoll);
-+    // Gravity in device frame (phone coordinate system)
-+    double gx = -9.81 * sp * sr;          // sideways tilt component
-+    double gy =  9.81 * cp;               // vertical (dominant when upright)
-+    double gz = -9.81 * sp * cr;          // forward tilt component
++    double sr = sin(mRoll), cr = cos(mRoll);
++    double gx = -9.81 * sp * sr;
++    double gy = 9.81 * cp;
++    double gz = -9.81 * sp * cr;
 +
-+    // === ACCELEROMETER (including gravity) ===
-+    // Real accel SD: 0.005-0.01 m/s² (we use 0.008)
++    // ACCELERATION (with gravity)
 +    {
 +      SensorData sd;
-+      sd.sensor() = static_cast<SensorType>(nsIDeviceSensorData::TYPE_ACCELERATION);
++      sd.sensor() =
++          static_cast<SensorType>(nsIDeviceSensorData::TYPE_ACCELERATION);
 +      sd.timestamp() = PR_Now();
 +      sd.values().AppendElement(static_cast<float>(
 +          gx + mAccelBias[0] + mAccelDrift[0] + tremor[0] + Gaussian() * 0.008));
@@ -144,26 +107,27 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +      mTarget->Notify(sd);
 +    }
 +
-+    // === LINEAR ACCELERATION (gravity removed) ===
-+    // Only tremor + noise remains
++    // LINEAR ACCELERATION (gravity removed)
 +    {
 +      SensorData sd;
-+      sd.sensor() = static_cast<SensorType>(nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION);
++      sd.sensor() = static_cast<SensorType>(
++          nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION);
 +      sd.timestamp() = PR_Now();
-+      sd.values().AppendElement(static_cast<float>(tremor[0] + Gaussian() * 0.005));
-+      sd.values().AppendElement(static_cast<float>(tremor[1] + Gaussian() * 0.005));
-+      sd.values().AppendElement(static_cast<float>(tremor[2] + Gaussian() * 0.005));
++      sd.values().AppendElement(
++          static_cast<float>(tremor[0] + Gaussian() * 0.005));
++      sd.values().AppendElement(
++          static_cast<float>(tremor[1] + Gaussian() * 0.005));
++      sd.values().AppendElement(
++          static_cast<float>(tremor[2] + Gaussian() * 0.005));
 +      mTarget->Notify(sd);
 +    }
 +
-+    // === GYROSCOPE ===
-+    // Angular velocity from orientation drift (consistent with orientation changes)
-+    // Real gyro SD: 0.0003-0.003 rad/s (we use 0.001)
++    // GYROSCOPE
 +    {
 +      SensorData sd;
-+      sd.sensor() = static_cast<SensorType>(nsIDeviceSensorData::TYPE_GYROSCOPE);
++      sd.sensor() =
++          static_cast<SensorType>(nsIDeviceSensorData::TYPE_GYROSCOPE);
 +      sd.timestamp() = PR_Now();
-+      // Approximate angular velocity from drift + tremor-induced rotation
 +      sd.values().AppendElement(static_cast<float>(
 +          mGyroBias[0] + mGyroDrift[0] + tremor[0] * 0.08 + Gaussian() * 0.001));
 +      sd.values().AppendElement(static_cast<float>(
@@ -173,15 +137,15 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +      mTarget->Notify(sd);
 +    }
 +
-+    // === ORIENTATION (alpha/beta/gamma in degrees) ===
-+    // Consistent with the gravity vector above
++    // ORIENTATION (degrees)
 +    {
 +      SensorData sd;
-+      sd.sensor() = static_cast<SensorType>(nsIDeviceSensorData::TYPE_ORIENTATION);
++      sd.sensor() =
++          static_cast<SensorType>(nsIDeviceSensorData::TYPE_ORIENTATION);
 +      sd.timestamp() = PR_Now();
-+      double alpha = fmod(mYaw * 180.0 / M_PI + 360.0, 360.0);      // compass [0,360)
-+      double beta  = mPitch * 180.0 / M_PI + Gaussian() * 0.3;       // front-back tilt
-+      double gamma = mRoll * 180.0 / M_PI + Gaussian() * 0.3;        // left-right tilt
++      double alpha = fmod(mYaw * 180.0 / M_PI + 360.0, 360.0);
++      double beta = mPitch * 180.0 / M_PI + Gaussian() * 0.3;
++      double gamma = mRoll * 180.0 / M_PI + Gaussian() * 0.3;
 +      sd.values().AppendElement(static_cast<float>(alpha));
 +      sd.values().AppendElement(static_cast<float>(beta));
 +      sd.values().AppendElement(static_cast<float>(gamma));
@@ -200,7 +164,7 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 + private:
 +  ~CamoufoxSensorSimulator() = default;
 +
-+  // xorshift64 PRNG (better than LCG, passes BigCrush)
++  // xorshift64 PRNG
 +  uint32_t Rand32() {
 +    uint32_t s = mRngState[0];
 +    uint32_t t = mRngState[1];
@@ -211,9 +175,9 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +    return mRngState[1];
 +  }
 +
-+  // Box-Muller transform: two uniform randoms → one Gaussian (mean=0, sd=1)
++  // Box-Muller transform: uniform → Gaussian (mean=0, sd=1)
 +  double Gaussian() {
-+    double u1 = (Rand32() + 1.0) / 4294967297.0;  // (0, 1) exclusive
++    double u1 = (Rand32() + 1.0) / 4294967297.0;
 +    double u2 = (Rand32() + 1.0) / 4294967297.0;
 +    return sqrt(-2.0 * log(u1)) * cos(2.0 * M_PI * u2);
 +  }
@@ -221,19 +185,13 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +  RefPtr<nsDeviceSensors> mTarget;
 +  uint64_t mTick;
 +  uint32_t mRngState[2];
-+
-+  // Per-session device calibration bias (constant offset, unique per "device")
 +  double mAccelBias[3];
 +  double mGyroBias[3];
-+
-+  // Bias random walk state (slow Brownian drift over time)
 +  double mAccelDrift[3];
 +  double mGyroDrift[3];
-+
-+  // Phone orientation state (radians)
-+  double mPitch;  // front-back tilt
-+  double mRoll;   // left-right tilt
-+  double mYaw;    // compass heading
++  double mPitch;
++  double mRoll;
++  double mYaw;
 +};
 +
 +NS_IMPL_ISUPPORTS(CamoufoxSensorSimulator, nsITimerCallback, nsINamed)
@@ -241,13 +199,13 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
  NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
                                                   nsIDOMWindow* aWindow) {
    if (!IsSensorAllowedByPref(aType, aWindow)) return NS_OK;
-@@ -140,6 +330,23 @@ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
-
+@@ -160,6 +343,23 @@ NS_IMETHODIMP nsDeviceSensors::AddWindowListener(uint32_t aType,
+ 
    mWindowListeners[aType]->AppendElement(aWindow);
-
+ 
 +  // Camoufox: start unified sensor simulator when sensors:enabled is true.
 +  // One simulator drives all four sensor types in lockstep for cross-sensor
-+  // consistency (gravity, tremor, and orientation from the same physical state).
++  // consistency (gravity, tremor, and orientation from same physical state).
 +  if (MaskConfig::CheckBool("sensors:enabled") &&
 +      mCamoufoxSensorTimers.IsEmpty()) {
 +    if (aType == nsIDeviceSensorData::TYPE_ACCELERATION ||
@@ -256,8 +214,8 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
 +        aType == nsIDeviceSensorData::TYPE_ORIENTATION) {
 +      nsCOMPtr<nsITimer> timer;
 +      RefPtr<CamoufoxSensorSimulator> sim = new CamoufoxSensorSimulator(this);
-+      NS_NewTimerWithCallback(getter_AddRefs(timer), sim,
-+                              16, nsITimer::TYPE_REPEATING_SLACK);  // 60 Hz
++      NS_NewTimerWithCallback(getter_AddRefs(timer), sim, 16,
++                              nsITimer::TYPE_REPEATING_SLACK);
 +      mCamoufoxSensorTimers.AppendElement(timer);
 +    }
 +  }
@@ -265,3 +223,25 @@ index xxxxxxxxxx..yyyyyyyyyy 100644
    if (StaticPrefs::device_sensors_test_events()) {
      nsCOMPtr<nsIRunnable> event = new DeviceSensorTestEvent(this, aType);
      NS_DispatchToCurrentThread(event);
+diff --git a/dom/system/nsDeviceSensors.h b/dom/system/nsDeviceSensors.h
+index 67c94c9a19..601723d78c 100644
+--- a/dom/system/nsDeviceSensors.h
++++ b/dom/system/nsDeviceSensors.h
+@@ -13,6 +13,7 @@
+ #include "nsCOMArray.h"
+ #include "nsCOMPtr.h"
+ #include "nsIDeviceSensors.h"
++#include "nsITimer.h"
+ #include "nsTArray.h"
+ 
+ class nsIDOMWindow;
+@@ -67,6 +68,9 @@ class nsDeviceSensors : public nsIDeviceSensors,
+   mozilla::Maybe<DeviceAccelerationInit> mLastAcceleration;
+   mozilla::Maybe<DeviceAccelerationInit> mLastAccelerationIncludingGravity;
+   mozilla::Maybe<DeviceRotationRateInit> mLastRotationRate;
++
++  // Camoufox: timers for synthetic sensor events (mobile emulation)
++  nsTArray<nsCOMPtr<nsITimer>> mCamoufoxSensorTimers;
+ };
+ 
+ #endif

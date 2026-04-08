@@ -1,33 +1,40 @@
 diff --git a/layout/style/nsMediaFeatures.cpp b/layout/style/nsMediaFeatures.cpp
-index cc86d1abf6..bfc4d0f1d8 100644
+index 3182e94281..00aea826a4 100644
 --- a/layout/style/nsMediaFeatures.cpp
 +++ b/layout/style/nsMediaFeatures.cpp
-@@ -6,5 +6,6 @@
-
- #include "nsMediaFeatures.h"
+@@ -7,6 +7,7 @@
+ /* the features that media queries can test */
+ 
+ #include "PreferenceSheet.h"
 +#include "MaskConfig.hpp"
-
+ #include "mozilla/GeckoBindings.h"
  #include "mozilla/LookAndFeel.h"
- #include "mozilla/MediaFeatureChange.h"
-@@ -372,24 +372,19 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
-
+ #include "mozilla/RelativeLuminanceUtils.h"
+@@ -389,26 +390,25 @@ static PointerCapabilities GetPointerCapabilities(const Document* aDocument,
+     }
+   }
+ 
++  // Camoufox: configurable pointer type for mobile emulation
++  if (auto ptype = MaskConfig::GetString("pointer:type")) {
++    if (ptype.value() == "coarse") {
++      return PointerCapabilities::Coarse;
++    }
++    if (ptype.value() == "fine") {
++      return PointerCapabilities::Fine;
++    }
++    if (ptype.value() == "fine+hover") {
++      return PointerCapabilities::Fine | PointerCapabilities::Hover;
++    }
++  }
++
    // The default value for Desktop is mouse-type pointer, and for Android
    // a coarse pointer.
 -  const PointerCapabilities kDefaultCapabilities =
-+  // Camoufox: configurable pointer type for mobile emulation
-+  if (auto ptype = MaskConfig::GetString("pointer:type")) {
-+    if (ptype.value() == "coarse")
-+      return PointerCapabilities::Coarse;
-+    if (ptype.value() == "fine")
-+      return PointerCapabilities::Fine;
-+    if (ptype.value() == "fine+hover")
-+      return PointerCapabilities::Fine | PointerCapabilities::Hover;
-+  }
  #ifdef ANDROID
 -      PointerCapabilities::Coarse;
 -#else
 -      PointerCapabilities::Fine | PointerCapabilities::Hover;
-+      return PointerCapabilities::Coarse;
++  return PointerCapabilities::Coarse;
  #endif
 -  if (aDocument->ShouldResistFingerprinting(
 -          RFPTarget::CSSPointerCapabilities)) {
@@ -43,5 +50,5 @@ index cc86d1abf6..bfc4d0f1d8 100644
 -  return static_cast<PointerCapabilities>(intValue);
 +  return PointerCapabilities::Fine | PointerCapabilities::Hover;
  }
-
+ 
  PointerCapabilities Gecko_MediaFeatures_PrimaryPointerCapabilities(
