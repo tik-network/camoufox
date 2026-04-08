@@ -1,3 +1,15 @@
+diff --git a/dom/system/moz.build b/dom/system/moz.build
+index 73e7787137..5b4d21f2b9 100644
+--- a/dom/system/moz.build
++++ b/dom/system/moz.build
+@@ -79,6 +79,7 @@ include("/ipc/chromium/chromium-config.mozbuild")
+ FINAL_LIBRARY = "xul"
+ # We fire the nsDOMDeviceAcceleration
+ LOCAL_INCLUDES += [
++    "/camoucfg",
+     "/dom/base",
+     "/dom/bindings",
+     "/js/xpconnect/loader",
 diff --git a/dom/system/nsDeviceSensors.cpp b/dom/system/nsDeviceSensors.cpp
 index c281b2de31..1ddd125b10 100644
 --- a/dom/system/nsDeviceSensors.cpp
