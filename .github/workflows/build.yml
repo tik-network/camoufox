@@ -21,12 +21,6 @@ jobs:
           # Unsuported
           - target: macos
             arch: i686
-          # macOS SDK requires private mirror (HTTP 403 on public URL).
-          # Skip macOS until SDK source is configured for this fork.
-          - target: macos
-            arch: x86_64
-          - target: macos
-            arch: arm64
 
     steps:
       - name: Maximize build space
