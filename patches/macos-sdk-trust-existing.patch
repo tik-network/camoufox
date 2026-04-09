@@ -1,0 +1,16 @@
+diff --git a/build/moz.configure/bootstrap.configure b/build/moz.configure/bootstrap.configure
+--- a/build/moz.configure/bootstrap.configure
++++ b/build/moz.configure/bootstrap.configure
+@@ -201,6 +201,12 @@ def bootstrap_search_path_order(host):
+                 # On automation, if there's an artifact in MOZ_FETCHES_DIR, we assume it's
+                 # up-to-date.
+                 index = task_index if moz_fetches_dir else None
++            # Camoufox: trust existing private/local toolchains (e.g. macOS SDK)
++            # because the upstream URL in macos-sdk.yml is dead and we pre-fetch
++            # via scripts/fetch-macos-sdk.py during CI before invoking mach build.
++            if exists and not artifact.startswith("public/"):
++                log.debug("%s exists, trusting pre-fetched copy", label)
++                return True
+             if index == task_index and exists:
+                 log.debug("%s is up-to-date", label)
+                 return True
