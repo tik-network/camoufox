@@ -21,12 +21,10 @@ import tempfile
 from pathlib import Path
 from urllib.request import urlopen
 
-# Working Apple SDK URL (from Apple's current SUSCatalog).
-# The Mozilla-pinned URL in macos-sdk.yml is dead/expired.
-# This is the largest/newest CLTools_macOSNMOS_SDK.pkg currently served.
+# Apple SDK URL for macOS 26.1 (from macos-sdk.yml)
 SDK_URL = (
-    "https://swcdn.apple.com/content/downloads/50/51/"
-    "071-29699-A_YC8SX0OHH3/7479xojqghsvgtnt3dxjpnxuz9sjpmbmds/"
+    "https://swcdn.apple.com/content/downloads/22/09/"
+    "093-00219-A_WIA1LP39TY/evbam2mb02xqr05ju9ddb95y8qil8kz9tm/"
     "CLTools_macOSNMOS_SDK.pkg"
 )
 
