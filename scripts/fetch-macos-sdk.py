@@ -37,6 +37,24 @@ EXTRACT_PREFIX = "Library/Developer/CommandLineTools/SDKs/MacOSX26.1.sdk"
 DEST_DIR_NAME = "MacOSX26.1.sdk"
 
 
+def find_src_dir() -> Path:
+    """Find the camoufox source directory."""
+    if len(sys.argv) > 1:
+        return Path(sys.argv[1]).resolve()
+    for entry in Path(".").iterdir():
+        if entry.is_dir() and entry.name.startswith("camoufox-"):
+            return entry.resolve()
+    print("error: cannot find camoufox source directory", file=sys.stderr)
+    sys.exit(1)
+
+
+def setup_mozpack(src_dir: Path):
+    """Add mozpack to sys.path so we can import it in-process."""
+    mozbuild_py = str(src_dir / "python" / "mozbuild")
+    if mozbuild_py not in sys.path:
+        sys.path.insert(0, mozbuild_py)
+
+
 def download_pkg(url: str, out_path: Path) -> str:
     """Download the SDK package and return its sha512 hex digest."""
     print(f"Downloading {url}", file=sys.stderr)
@@ -48,32 +66,26 @@ def download_pkg(url: str, out_path: Path) -> str:
                 break
             h.update(buf)
             f.write(buf)
-    print(f"  → {out_path} ({out_path.stat().st_size} bytes)", file=sys.stderr)
+    print(f"  -> {out_path} ({out_path.stat().st_size} bytes)", file=sys.stderr)
     return h.hexdigest()
 
 
 def find_sdk_in_pkg(pkg_path: Path) -> str:
     """
     Inspect the .pkg to find which MacOSX SDK version it actually contains.
-    The Mozilla extract_prefix is hardcoded to MacOSX26.1.sdk, but the
-    pkg from Apple's catalog might have a different version. We need to
-    detect it and rename later.
+    Returns e.g. "MacOSX15.2.sdk" or "" on failure.
     """
-    # Use python's tarfile/xar approach via unpack-sdk's mozpack helpers
-    # if available, otherwise fall back to shelling out.
     try:
-        from mozpack.macpkg import unxar  # type: ignore
+        from mozpack.macpkg import Pbzx, uncpio, unxar
+
         with open(pkg_path, "rb") as f:
             for name, content in unxar(f):
                 if name in ("Payload", "Content"):
-                    # Inspect first few entries to find SDK name
-                    from mozpack.macpkg import Pbzx, uncpio
                     for path, st, _ in uncpio(Pbzx(content)):
                         if not path:
                             continue
                         path_str = path.decode()
                         if "/SDKs/MacOSX" in path_str and ".sdk/" in path_str:
-                            # Extract the SDK directory name
                             after = path_str.split("/SDKs/", 1)[1]
                             sdk_name = after.split("/", 1)[0]
                             return sdk_name
@@ -83,22 +95,76 @@ def find_sdk_in_pkg(pkg_path: Path) -> str:
     return ""
 
 
-def main():
-    src_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    if src_dir is None:
-        # Auto-detect camoufox source dir
-        for entry in Path(".").iterdir():
-            if entry.is_dir() and entry.name.startswith("camoufox-"):
-                src_dir = entry
-                break
-    if src_dir is None or not src_dir.exists():
-        print("error: cannot find camoufox source directory", file=sys.stderr)
-        sys.exit(1)
+def extract_sdk_direct(pkg_path: Path, extract_prefix: str, dest: Path):
+    """Extract the SDK directly using mozpack (no subprocess, no re-download)."""
+    from mozpack.macpkg import Pbzx, uncpio, unxar
+    import stat
+    from io import BytesIO
 
-    unpack_script = (src_dir / "taskcluster" / "scripts" / "misc" / "unpack-sdk.py").resolve()
-    if not unpack_script.exists():
-        print(f"error: {unpack_script} not found", file=sys.stderr)
-        sys.exit(1)
+    print(f"  Extracting with prefix: {extract_prefix}", file=sys.stderr)
+    dest.mkdir(parents=True, exist_ok=True)
+    count = 0
+    hardlinks = {}
+
+    with open(pkg_path, "rb") as f:
+        for name, content in unxar(f):
+            if name not in ("Payload", "Content"):
+                continue
+            for path, st_info, file_content in uncpio(Pbzx(content)):
+                if not path:
+                    continue
+                path_str = path.decode()
+                matches = path_str.startswith(extract_prefix)
+
+                # Handle hardlinks (same logic as Mozilla's unpack-sdk.py)
+                if stat.S_ISREG(st_info.mode) and st_info.nlink > 1:
+                    key = (st_info.dev, st_info.ino)
+                    hardlink = hardlinks.get(key)
+                    if hardlink:
+                        hardlink[0] -= 1
+                        if hardlink[0] == 0:
+                            del hardlinks[key]
+                        file_content = hardlink[1]
+                        if isinstance(file_content, BytesIO):
+                            file_content.seek(0)
+                            if matches:
+                                out_path = str(dest / path_str[len(extract_prefix):].lstrip("/"))
+                                hardlink[1] = out_path
+                    elif matches:
+                        out_path = str(dest / path_str[len(extract_prefix):].lstrip("/"))
+                        hardlink = hardlinks[key] = [st_info.nlink - 1, out_path]
+                    else:
+                        hardlink = hardlinks[key] = [st_info.nlink - 1, BytesIO(file_content.read())]
+                        file_content = hardlink[1]
+
+                if not matches:
+                    continue
+
+                out_path = str(dest / path_str[len(extract_prefix):].lstrip("/"))
+                if stat.S_ISDIR(st_info.mode):
+                    os.makedirs(out_path, exist_ok=True)
+                else:
+                    parent = os.path.dirname(out_path)
+                    if parent:
+                        os.makedirs(parent, exist_ok=True)
+                    if stat.S_ISLNK(st_info.mode):
+                        os.symlink(file_content.read(), out_path)
+                    elif stat.S_ISREG(st_info.mode):
+                        if isinstance(file_content, str):
+                            os.link(file_content, out_path)
+                        else:
+                            with open(out_path, "wb") as out:
+                                shutil.copyfileobj(file_content, out)
+                    count += 1
+            break
+
+    print(f"  Extracted {count} files to {dest}", file=sys.stderr)
+    return count > 0
+
+
+def main():
+    src_dir = find_src_dir()
+    setup_mozpack(src_dir)
 
     mozbuild = Path.home() / ".mozbuild"
     dest = mozbuild / DEST_DIR_NAME
@@ -121,30 +187,36 @@ def main():
             print(f"  pkg contains: {sdk_name}", file=sys.stderr)
             extract_prefix = f"Library/Developer/CommandLineTools/SDKs/{sdk_name}"
         else:
+            print("  using default extract prefix", file=sys.stderr)
             extract_prefix = EXTRACT_PREFIX
 
-        # Run mozilla's unpack-sdk.py with the working URL and computed hash
-        env = os.environ.copy()
-        # Make sure mozpack is on the path
-        env["PYTHONPATH"] = str((src_dir / "python" / "mozbuild").resolve()) + os.pathsep + env.get("PYTHONPATH", "")
-        cmd = [
-            sys.executable,
-            str(unpack_script),
-            SDK_URL,
-            sha512,
-            extract_prefix,
-            DEST_DIR_NAME,
-        ]
-        print(f"Running: {' '.join(cmd)}", file=sys.stderr)
-        result = subprocess.run(cmd, cwd=str(mozbuild), env=env)
-        if result.returncode != 0:
-            print(f"error: unpack-sdk.py exited with {result.returncode}", file=sys.stderr)
-            sys.exit(result.returncode)
-
-        # Verify
-        if not dest.exists() or not any(dest.iterdir()):
-            print(f"error: extraction did not produce {dest}", file=sys.stderr)
+        # Extract directly using mozpack (avoids re-downloading)
+        if not extract_sdk_direct(pkg_path, extract_prefix, dest):
+            print(f"error: extraction did not produce any files in {dest}", file=sys.stderr)
+            # Show what prefixes actually exist in the pkg for debugging
+            try:
+                from mozpack.macpkg import Pbzx, uncpio, unxar
+                prefixes = set()
+                with open(pkg_path, "rb") as f:
+                    for name, content in unxar(f):
+                        if name in ("Payload", "Content"):
+                            for path, st, _ in uncpio(Pbzx(content)):
+                                if path:
+                                    p = path.decode()
+                                    # Show top-level paths for debugging
+                                    parts = p.split("/")
+                                    if len(parts) >= 5:
+                                        prefixes.add("/".join(parts[:5]))
+                                    if len(prefixes) >= 20:
+                                        break
+                            break
+                print(f"  paths found in pkg:", file=sys.stderr)
+                for p in sorted(prefixes):
+                    print(f"    {p}", file=sys.stderr)
+            except Exception:
+                pass
             sys.exit(1)
+
         print(f"SDK extracted to {dest}", file=sys.stderr)
 
         # Write index file so mach treats it as up-to-date
