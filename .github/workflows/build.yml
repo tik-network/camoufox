@@ -12,15 +12,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [linux, windows, macos]
-        arch: [x86_64, arm64, i686]
-        exclude:
-          # Fails (.mozbuild does not include clang++-cl)
-          - target: windows
-            arch: arm64
-          # Unsuported
-          - target: macos
-            arch: i686
+        # TODO: restore full matrix after macOS SDK fix is verified
+        # target: [linux, windows, macos]
+        # arch: [x86_64, arm64, i686]
+        # exclude:
+        #   # Fails (.mozbuild does not include clang++-cl)
+        #   - target: windows
+        #     arch: arm64
+        #   # Unsuported
+        #   - target: macos
+        #     arch: i686
+        target: [macos]
+        arch: [arm64]
 
     steps:
       - name: Maximize build space

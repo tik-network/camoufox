@@ -95,7 +95,7 @@ def main():
         print("error: cannot find camoufox source directory", file=sys.stderr)
         sys.exit(1)
 
-    unpack_script = src_dir / "taskcluster" / "scripts" / "misc" / "unpack-sdk.py"
+    unpack_script = (src_dir / "taskcluster" / "scripts" / "misc" / "unpack-sdk.py").resolve()
     if not unpack_script.exists():
         print(f"error: {unpack_script} not found", file=sys.stderr)
         sys.exit(1)
@@ -126,7 +126,7 @@ def main():
         # Run mozilla's unpack-sdk.py with the working URL and computed hash
         env = os.environ.copy()
         # Make sure mozpack is on the path
-        env["PYTHONPATH"] = str(src_dir / "python" / "mozbuild") + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str((src_dir / "python" / "mozbuild").resolve()) + os.pathsep + env.get("PYTHONPATH", "")
         cmd = [
             sys.executable,
             str(unpack_script),
